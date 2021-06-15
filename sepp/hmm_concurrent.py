@@ -1,4 +1,6 @@
 import copy
+import random
+
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -276,10 +278,10 @@ def saveScoreSimple(abstract_algorithm, hmmNames, queryNames, scoreName):
     sequenceFileNames = giveSequenceFileNames()
     hmmNum = len(hmmNames)
     data = np.zeros((len(queries), hmmNum))
-    randInt = str(np.random.randint(100000000000))
+    randIntArr = random.sample(range(100000000000), len(hmmNames))
     for a in range(0, len(hmmNames)):
         hmmName = hmmNames[a]
-        scoreNameTemp = get_root_temp_dir() + "/data/temporaryStorage/temp_" + randInt + ".txt"
+        scoreNameTemp = get_root_temp_dir() + "/data/temporaryStorage/temp_" + str(randIntArr[a]) + ".txt"
         queryName = queryNames[a]
         ensureFolder(scoreNameTemp)
         addHMMAlignJob(abstract_algorithm, hmmName, queryName, scoreNameTemp)
@@ -287,7 +289,7 @@ def saveScoreSimple(abstract_algorithm, hmmNames, queryNames, scoreName):
 
     for a in range(0, len(hmmNames)):
         hmmName = hmmNames[a]
-        scoreNameTemp = get_root_temp_dir() + "/data/temporaryStorage/temp_" + randInt + ".txt"
+        scoreNameTemp = get_root_temp_dir() + "/data/temporaryStorage/temp_" + str(randIntArr[a]) + ".txt"
         queryName = queryNames[a]
         ensureFolder(scoreNameTemp)
         dataOld = []
@@ -312,7 +314,7 @@ def saveScoreSimple(abstract_algorithm, hmmNames, queryNames, scoreName):
             data[queryN, a] = float(dataOld[b, 1])
     ensureFolder(scoreName)
     np.save(scoreName, data)
-    os.remove(scoreNameTemp)
+    # os.remove(scoreNameTemp)
 
 def saveNewScores(abstract_algorithm, strategyName):
     dataFolderName = giveAllFileNames()[4]
@@ -351,16 +353,16 @@ def saveScoreFromBool(abstract_algorithm, hmmNames, queryHMM, scoreName, noSave=
     sequenceFileNames = giveSequenceFileNames()
     hmmNum = len(hmmNames)
     data = np.zeros((len(queries), hmmNum))
-    randInt1 = str(np.random.randint(100000000000))
-    randInt2 = str(np.random.randint(100000000000))
+    randInt1Arr = random.sample(range(100000000000), len(hmmNames))
+    randInt2Arr = random.sample(range(100000000000), len(hmmNames))
     for a in range(0, len(hmmNames)):
         argsInclude = queryHMM[:, 0][queryHMM[:, 1] == a]
         if argsInclude.shape[0] > 0:
             hmmName = hmmNames[a]
-            scoreNameTemp = get_root_temp_dir() + "/data/temporaryStorage/temp_" + randInt1 + ".txt"
+            scoreNameTemp = get_root_temp_dir() + "/data/temporaryStorage/temp_" + str(randInt1Arr[a]) + ".txt"
             queryName = giveQueryFileName()
             queryData = loadFastaFormat(queryName)
-            queryNameTemp = get_root_temp_dir() + '/data/temporaryStorage/temp_' + randInt2 + '.fasta'
+            queryNameTemp = get_root_temp_dir() + '/data/temporaryStorage/temp_' + str(randInt2Arr[a]) + '.fasta'
             queryNow = []
             for b in argsInclude:
                 queryNow.append(queryData[b])
@@ -372,7 +374,7 @@ def saveScoreFromBool(abstract_algorithm, hmmNames, queryHMM, scoreName, noSave=
     for a in range(0, len(hmmNames)):
         argsInclude = queryHMM[:, 0][queryHMM[:, 1] == a]
         if argsInclude.shape[0] > 0:
-            scoreNameTemp = get_root_temp_dir() + "/data/temporaryStorage/temp_" + randInt1 + ".txt"
+            scoreNameTemp = get_root_temp_dir() + "/data/temporaryStorage/temp_" + str(randInt1Arr[a]) + ".txt"
             dataOld = []
             file_obj = open(scoreNameTemp)
             count1 = 0
@@ -392,8 +394,9 @@ def saveScoreFromBool(abstract_algorithm, hmmNames, queryHMM, scoreName, noSave=
             for b in range(0, len(dataOld)):
                 queryN = queryDict[dataOld[b, 0]]
                 data[queryN, a] = float(dataOld[b, 1])
-    os.remove(scoreNameTemp)
-    os.remove(queryNameTemp)
+    # this remove no longermakes sense due to the name changing in every iteration
+    # os.remove(scoreNameTemp)
+    # os.remove(queryNameTemp)
     if noSave:
         return data
     else:
@@ -911,7 +914,7 @@ def alignQueries(abstract_algorithm, strategyName):
             addHMMAlignJob(abstract_algorithm, hmmName, queryName1, predictionName)
     JobPool().wait_for_all_jobs()
 
-def mergeAlignments(strategyName, overlapLowercase=True):
+def mergeAlignments(abstract_algorithm, strategyName, overlapLowercase=True):
     dataFolderName = giveAllFileNames()[4]
     queryToHmm = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/HMMused.npy")
     predictionDataFull = []
@@ -1041,6 +1044,7 @@ def mergeAlignments(strategyName, overlapLowercase=True):
 
     fastaName = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + '/hmmQueryList/merged/alignmentFasta.fasta'
     ensureFolder(fastaName)
+    saveFastaBasic(abstract_algorithm.get_output_filename("alignment.fasta"), queryNames, newAlignmentString)
     saveFastaBasic(fastaName, queryNames, newAlignmentString)
 
     fastaNameQuery = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + '/hmmQueryList/merged/query_alignmentFasta.fasta'
@@ -1204,7 +1208,7 @@ def buildAlignMerge(abstract_algorithm, strategyName, doResort=True):
     resortToUPP(strategyName, doResort=doResort)
 
     alignQueries(abstract_algorithm, strategyName)
-    mergeAlignments(strategyName)
+    mergeAlignments(abstract_algorithm, strategyName)
 
 def saveTrueUPPSubset():
     fileNames = giveAllFileNames()
