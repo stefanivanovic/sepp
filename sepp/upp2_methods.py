@@ -53,37 +53,39 @@ def makedirstruct(dirpath):
         elif firstlvl == 'trueAlignment':
             for z in ['original', 'subset']:
                 subprocess.call(['mkdir', firstdir + '/' + z])
-       
+
 def run_upp_strats(abstract_algorithm, dirname, hier_upp, adjusted_bitscore, doResort=False):
     ''' Note: abstract_algorithm can be used to do commands like below.
         The moment you call addHMMBuildJob, jobs will get enqueued and run eventually
     addHMMBuildJob(abstract_algorithm, <hmmbuild profile output file path>, <fasta file path>)
     JobPool().wait_for_all_jobs()
     '''
-    print("[run_upp_strats]") 
-    
+    print("[run_upp_strats]")
+
     # globdir = glob.glob(os.path.join(dirname, "output*"))
     # assert len(globdir) == 1
     # outputdirname = globdir[0]
-    outputdirname = get_root_temp_dir()
-    hmmSeqFile = '%s/root/P_0/' % outputdirname
-    fragmentfile = os.listdir(outputdirname + "/fragment_chunks/")[0]
-    queryName = "%s/fragment_chunks/%s" % (outputdirname, fragmentfile)
+    root_temp_dir = get_root_temp_dir()
+    hmm_folder_prefix = "%s/root/P_0/" % root_temp_dir
+    # Nit: We should be able to retrieve the same information from options().fragment_file
+    fragment_file_suffix = os.listdir(root_temp_dir + "/fragment_chunks/")[0]
+    fragment_file = "%s/fragment_chunks/%s" % (root_temp_dir, fragment_file_suffix)
     # predictionName = './%s/UPPoutput/%s_output_alignment.fasta' % dirpath
 
-    # TODO: Prediction name may get passed in 
-    predictionName = '' 
-    trueAlignment = ''
-    dsnName = 'default-value-not-empty'
+    # TODO: Prediction name may get passed in
+    prediction_name = ""
+    # TODO: this is something we need to remove
+    true_alignment = ""
+    dataset_name = "default-value-not-empty"
 
-    setAllFileNames(hmmSeqFile, queryName, trueAlignment, predictionName, outputdirname, dsnName)
-    saveInitialSteps(abstract_algorithm)
-    if hier_upp: 
+    set_all_file_names(hmm_folder_prefix, fragment_file, true_alignment, prediction_name, root_temp_dir, dataset_name)
+    save_initial_steps(abstract_algorithm)
+    if hier_upp:
         strat = 'stefan_fastUPP'
         hierchySearch(abstract_algorithm)
     elif adjusted_bitscore:
         strat = 'stefan_UPPadjusted'
-    
+
     print("[processing %s]" % strat)
     print("[running scoresToHMMSeq]")
     scoresToHMMSeq(strat)
