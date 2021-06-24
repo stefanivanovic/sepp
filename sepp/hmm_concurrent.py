@@ -1482,9 +1482,7 @@ def hierchySearch(abstract_algorithm, adjusted_bitscore, early_stop, fakeSimulat
             if(adjusted_bitscore):
                 # I'm getting the sizes of the hmms and then adjusting the bitscores here
                 score1_size_weight = np.log2(hmm_sizes[maxHMMChild_original[:,0]])
-                print(score1_size_weight)
                 score2_size_weight = np.log2(hmm_sizes[maxHMMChild_original[:,1]])
-                print(score2_size_weight)
                 # print(queryHMM[:,1])
                 # print(hmm_sizes[queryHMM[:,1]])
                 # print(queryHMM[:,1].size)
