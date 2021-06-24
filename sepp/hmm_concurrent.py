@@ -744,7 +744,7 @@ def scoresToHMMSeq(strategyName):
         maxHMM = np.argmax(scores, axis=1).astype(int)
         HMMunique, HMMinverse = np.unique(maxHMM, return_inverse=True)
         HMMinverse = np.array([np.arange(HMMinverse.shape[0]), HMMinverse]).T
-        print(f"saving to {get_root_temp_dir()}/data/internalData/{dataFolderName}/{strategyName}/queryToHmm/original.npy")
+        _LOG.debug(f"saving to {get_root_temp_dir()}/data/internalData/{dataFolderName}/{strategyName}/queryToHmm/original.npy")
         np.save(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy", HMMinverse)
         for a in range(0, len(HMMunique)):
             HMMnum = HMMunique[a]
@@ -1489,7 +1489,7 @@ def hierchySearch(abstract_algorithm, adjusted_bitscore, early_stop, fakeSimulat
                 # print(hmm_sizes[queryHMM[:,1]])
                 # print(queryHMM[:,1].size)
                 # print(hmm_sizes[queryHMM[:,1]].size)
-                print(np.log2(hmm_sizes[queryHMM[:,1]])[0])
+                # print(np.log2(hmm_sizes[queryHMM[:,1]])[0])
                 scoresFull[queryHMM[:,0], queryHMM[:,1]] = scoresFull[queryHMM[:,0], queryHMM[:,1]] + np.log2(hmm_sizes[queryHMM[:,1]])
                 newScores1 = newScores1 + score1_size_weight
                 newScores2 = newScores2 + score2_size_weight
@@ -1515,7 +1515,6 @@ def hierchySearch(abstract_algorithm, adjusted_bitscore, early_stop, fakeSimulat
             maxHMMlist.append(np.copy(maxHMM[:10]))
         else:
             done = True
-    np.set_printoptions(threshold=sys.maxsize)
     per_query_hmms_looked_at = bool_done.sum(axis=1)
     num_hmms_looked_at = np.where(bool_done.sum(axis=0) > 0, 1, 0).sum()
     num_hmms = len(bool_done[0])
