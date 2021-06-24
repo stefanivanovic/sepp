@@ -99,13 +99,15 @@ def run_upp_strats(abstract_algorithm, dirname, hier_upp, adjusted_bitscore, ear
         "num_hmms": None,
         "per_query_hmm_chosen": None,
     }
+    strat = None
     if hier_upp:
         strat = "hierarchical"
         hierarchy_search_results = hierchySearch(abstract_algorithm, adjusted_bitscore, early_stop)
     elif adjusted_bitscore:
         # this forces UPP2 to load fullAdjusted.npy instead of score.np
         strat = "adjusted_bitscore"
-
+    if (strat is None):
+        raise Exception("Unsupported strategy")
     _LOG.info("[processing %s]" % strat)
     _LOG.info("[running scoresToHMMSeq]")
     scoresToHMMSeq(strat)
