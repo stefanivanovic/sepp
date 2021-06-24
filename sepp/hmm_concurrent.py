@@ -1523,18 +1523,6 @@ def hierchySearch(abstract_algorithm, adjusted_bitscore, early_stop, fakeSimulat
 
     per_query_hmm_chosen= np.argmax(scoresFull, axis=1)
     maxHMM_original = np.argmax(scores_original, axis=1)
-    print(f"original score: {scores_original[0,1]}")
-    print(f"score full score: {scoresFull[0,1]}")
-    print(f"log2 hmm size: {np.log2(hmm_sizes[1])}")
-    print(f"original score: {scores_original[284,1]}")
-    print(f"score full score: {scoresFull[284,1]}")
-    print(f"log2 hmm size: {np.log2(hmm_sizes[1])}")
-    print(f"original score: {scores_original[2,40]}")
-    print(f"score full score: {scoresFull[2,40]}")
-    print(f"log2 hmm size: {np.log2(hmm_sizes[40])}")
-    print(f"original score: {scores_original[3,40]}")
-    print(f"score full score: {scoresFull[3,40]}")
-    print(f"log2 hmm size: {np.log2(hmm_sizes[40])}")
 
     # print(f"maxHMM_guess: {maxHMM_guess}")
     # print(f"maxHMM_original: {maxHMM_original}")
