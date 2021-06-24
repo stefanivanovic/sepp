@@ -25,8 +25,6 @@ dataSetName = ''
 
 _LOG = get_logger(__name__)
 
-_LOG = get_logger(__name__)
-
 def ensureFolder(fileName):
     pathlib.Path(fileName).parents[0].mkdir(parents=True, exist_ok=True)
     # def removeEnd(fileName):
@@ -270,8 +268,8 @@ def giveHMMversion():
 
 def addHMMSearchJob(abstract_algorithm, hmmName, queryName, scoreName):
     ensureFolder(scoreName)
-    hmmsearch_job = HMMSearchJob(**vars(abstract_algorithm.options.hmmsearch))
-    hmmsearch_job.setup(hmmName, queryName, scoreName, elim=abstract_algorithm.elim)
+    hmmsearch_job = HMMSearchJob(tblout=True, **vars(abstract_algorithm.options.hmmsearch))
+    hmmsearch_job.setup(hmmName, queryName, scoreName, filters=False, elim=abstract_algorithm.elim)
     hmmsearch_job.results_on_temp = False
     JobPool().enqueue_job(hmmsearch_job)
 
@@ -409,6 +407,7 @@ def saveScoreFromBool(abstract_algorithm, hmmNames, queryHMM, scoreName, noSave=
             # BUG: this should be hmmmsearch I'm pretty sure
             addHMMSearchJob(abstract_algorithm, hmmName, queryNameTemp, scoreNameTemp)
     JobPool().wait_for_all_jobs()
+    _LOG.debug(f"saveScoreFromBool: number of hmms - {len(hmmNames)}")
     for a in range(0, len(hmmNames)):
         argsInclude = queryHMM[:, 0][queryHMM[:, 1] == a]
         if argsInclude.shape[0] > 0:
@@ -417,7 +416,9 @@ def saveScoreFromBool(abstract_algorithm, hmmNames, queryHMM, scoreName, noSave=
             file_obj = open(scoreNameTemp)
             count1 = 0
             for line_number, i in enumerate(file_obj):
-                ar = i.split('  ')
+                # make sure this is literally two white spcae characters because otherwise it won't work
+                # it also hinges on the assumption that the hmmsearch output is the --tblout format and not the default -o
+                ar = i.split("  ")
                 listI = []
                 bitscoreList = []
                 if line_number == 1:
@@ -426,7 +427,10 @@ def saveScoreFromBool(abstract_algorithm, hmmNames, queryHMM, scoreName, noSave=
                     argSpace = np.argwhere(np.array(list(i)) == ' ')[:, 0]
                 if (len(ar) >= 30) and (line_number >= 3):
                     sequenceName = i[:20].replace(' ', '')
+                    # try:
                     bitScore = float(i[posScore-1:posScore+5].replace(' ', ''))
+                    # except:
+                    #     bitScore = 42112358
                     dataOld.append([sequenceName, bitScore])
             dataOld = np.array(dataOld)
             for b in range(0, len(dataOld)):
@@ -547,7 +551,7 @@ def save_hmm_sets():
     sequenceFileNames = giveSequenceFileNames()
     sets = []
     for a in range(0, len(sequenceFileNames)):
-        print(f"{a}: {sequenceFileNames[a]}")
+        # print(f"{a}: {sequenceFileNames[a]}")
         src = sequenceFileNames[a]
         set1 = []
         file_obj = open(src)
@@ -731,7 +735,7 @@ def scoresToHMMSeq(strategyName):
     scores = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmScores/fullAdjusted.npy")
     ensureFolder(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy")
     ensureFolder(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/newHMM/newHMMseq/")
-    if strategyName in ['stefan_UPP', 'stefan_UPPadjusted']:
+    if strategyName in ["adjusted_bitscore"]: # ['stefan_UPP', 'stefan_UPPadjusted']:
         if strategyName == 'stefan_UPP':
             scores = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmScores/full.npy")
         scores = scores / np.max(scores)
@@ -747,10 +751,12 @@ def scoresToHMMSeq(strategyName):
             name = get_root_temp_dir() + "/data/internalData/" + dataFolderName + '/hmmSeqAlign/' + str(a) + '.fasta'
             keys, seqs = loadFastaBasic(name)
             saveFastaBasic(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/newHMM/newHMMseq/" + str(a) + ".fasta", keys, seqs)
-    if strategyName in ['stefan_fastUPP', 'stefan_fastUPPexception', 'stefan_fastUPPearly']:
+    if strategyName in ["hierarchical"]: # ['stefan_fastUPP', 'stefan_fastUPPexception', 'stefan_fastUPPearly']:
         if strategyName == 'stefan_fastUPPearly':
             scoresFull = np.load('%s/ensembleData/Searcher/scoreFiles/Early_score.npy' % dirName)
         else:
+            # normally score.npy stores the raw bitscores while fullAdjusted.npy stores the adjusted bitscores
+            # however if the
             scoresFull = np.load('%s/ensembleData/Searcher/scoreFiles/score.npy' % dirName)
         maxHMM = np.argmax(scoresFull, axis=1).astype(int)
         if strategyName == 'stefan_fastUPPexception':
@@ -1363,12 +1369,9 @@ def compareToUPP():
     print (seqs2[0])
 
 
-def hierchySearch(abstract_algorithm, fakeSimulate=False):
-    # weighted_bitscores = True
-    weighted_bitscores = False
-    # earlyStop = True
-    earlyStop = False
+def hierchySearch(abstract_algorithm, adjusted_bitscore, early_stop, fakeSimulate=False):
     observeNephew = False
+
     dataFolderName = giveAllFileNames()[4]
     # np.load("./data/internalData/" + dataFolderName + "/hmmScores/full.npy")
     # scores_original is the raw bitscores without the adjusted weights
@@ -1432,17 +1435,17 @@ def hierchySearch(abstract_algorithm, fakeSimulate=False):
     # maxHMM is initally the best scoring hmm which would always be zero since queryHMM[:1] is just zeros initially
     # if we do an argmax along axis 1 then we are looking at the indices for each row the maximum scoring HMM, or
     # in this case the only hmm, hmm 0.
-    # so this argmax can be skipped entirely, especially since boolDone is hardcoded to zero anyways
+    # so this argmax can be skipped entirely, especially since bool_done is hardcoded to zero anyways
     maxHMM = np.argmax(scoresFull, axis=1)
-    boolDone = np.zeros((Nquery, Nhmm))
+    bool_done = np.zeros((Nquery, Nhmm))
     # for every query sequence, we mark the 0th root hmm as done, or 1,
     # since we already ran them
-    boolDone[:, 0] = 1
+    bool_done[:, 0] = 1
     maxHMMlist = []
     scoresRecord = []
 
-    a = 1
     done = False
+    num_iteration = 0
     while not done:
         # so at every iteration, maxNotLeaf is going to be updated with the
         # children of maxHMM that have at least one child
@@ -1461,11 +1464,12 @@ def hierchySearch(abstract_algorithm, fakeSimulate=False):
         maxHMMChild = np.copy(maxHMMChild_original).reshape((maxHMMChild_original.size,))
         queryCorrespond = maxNotLeaf[np.arange(maxHMMChild.size) // (maxHMMChild_original.shape[1]) ]
         queryToHMM_try = np.array([queryCorrespond, maxHMMChild]).T
-        queryHMM = queryToHMM_try[boolDone[queryToHMM_try[:, 0], queryToHMM_try[:, 1] ] == 0]
+        queryHMM = queryToHMM_try[bool_done[queryToHMM_try[:, 0], queryToHMM_try[:, 1] ] == 0]
         # and now we can mark these HMMs done so that we don't pick these again via a mask next time
-        boolDone[queryHMM[:, 0], queryHMM[:, 1] ] = 1
+        bool_done[queryHMM[:, 0], queryHMM[:, 1] ] = 1
 
         if queryHMM.shape[0] != 0:
+            num_iteration += 1
             scoreName = ''
             if fakeSimulate:
                 scores = np.copy(scores_original)
@@ -1475,12 +1479,17 @@ def hierchySearch(abstract_algorithm, fakeSimulate=False):
             scoresFull[queryHMM[:, 0], queryHMM[:, 1]] = np.copy(scores[queryHMM[:, 0], queryHMM[:, 1]])
             newScores1 = scoresFull[maxNotLeaf, maxHMMChild_original[:, 0]]
             newScores2 = scoresFull[maxNotLeaf, maxHMMChild_original[:, 1]]
-            if(weighted_bitscores):
-                # so i just pick the first one in maxHMMChild_original but really the [0,0] and [0,1] define the two children
+            if(adjusted_bitscore):
                 # I'm getting the sizes of the hmms and then adjusting the bitscores here
-                score1_size_weight = np.log2(hmm_sizes[maxHMMChild_original[0,0]])
-                score2_size_weight = np.log2(hmm_sizes[maxHMMChild_original[0,1]])
-                scoresFull[queryHMM[:,0], queryHMM[:,1]] + np.log2(hmm_sizes[maxHMMChild])
+                score1_size_weight = np.log2(hmm_sizes[maxHMMChild_original[:,0]])
+                print(score1_size_weight)
+                score2_size_weight = np.log2(hmm_sizes[maxHMMChild_original[:,1]])
+                print(score2_size_weight)
+                # print(queryHMM[:,1])
+                # print(hmm_sizes[queryHMM[:,1]])
+                # print(queryHMM[:,1].size)
+                # print(hmm_sizes[queryHMM[:,1]].size)
+                scoresFull[queryHMM[:,0], queryHMM[:,1]] + np.log2(hmm_sizes[queryHMM[:,1]])
                 newScores1 = newScores1 + score1_size_weight
                 newScores2 = newScores2 + score2_size_weight
             # new scores 1 stores the scores from one of the children while new scores 2 stores the other child's score
@@ -1490,10 +1499,10 @@ def hierchySearch(abstract_algorithm, fakeSimulate=False):
             newChild = maxHMMChild_original[np.arange(newScores1.shape[0]), newScoresMax]
             # now the entries of maxHMM can be updated with the new children info since again
             # friendly reminder as stated above that maxHMM is an array where the ith element is the ith queries best HMM
-            # if it's early stop and the argmax happens to be ourselves, then the boolDone array will already have been populated
+            # if it's early stop and the argmax happens to be ourselves, then the bool_done array will already have been populated
             # for every query sequence  so we won't enter here since queryHMM.shape[0] would be zero and likewise in saveScoreFromBool
             # even if it did run
-            if earlyStop:
+            if early_stop:
                 maxHMM = np.argmax(scoresFull, axis=1)
             else:
                 maxHMM[maxNotLeaf] = newChild
@@ -1505,16 +1514,32 @@ def hierchySearch(abstract_algorithm, fakeSimulate=False):
             maxHMMlist.append(np.copy(maxHMM[:10]))
         else:
             done = True
-        a += 1
-    # this is also unused
-    scoresRecord = np.array(scoresRecord)
+    np.set_printoptions(threshold=sys.maxsize)
+    per_query_hmms_looked_at = bool_done.sum(axis=1)
+    num_hmms_looked_at = np.where(bool_done.sum(axis=0) > 0, 1, 0).sum()
+    num_hmms = len(bool_done[0])
+    _LOG.info(f"num_hmms_looked at: {num_hmms_looked_at} hmms")
+    _LOG.info(f"UPP would have looked at: {num_hmms} hmms")
+    _LOG.info(f"num_iteration in hierarchical search: {num_iteration}")
+
+    per_query_hmm_chosen= np.argmax(scoresFull, axis=1)
+    maxHMM_original = np.argmax(scores_original, axis=1)
+    # print(f"maxHMM_guess: {maxHMM_guess}")
+    print(f"maxHMM_original: {maxHMM_original}")
     # so score.npy then is a 2d array where the rows are query sequences and the columns are hmms and it stores the hmmsearch scores inside
     np.save('%s/ensembleData/Searcher/scoreFiles/score.npy' % dirName, scoresFull)
     # Bool.npy is going to be a 2d array where array[a,b] = 1 if hmmsearch was run for query sequence a using hmm b
-    np.save('%s/ensembleData/Searcher/scoreFiles/Bool.npy' % dirName, boolDone)
-    # this line and below is unused
-    maxHMM_guess = np.argmax(scoresFull, axis=1)
-    maxHMM_original = np.argmax(scores_original, axis=1)
+    np.save('%s/ensembleData/Searcher/scoreFiles/Bool.npy' % dirName, bool_done)
+
+    return {
+        "num_hmms_looked_at": num_hmms_looked_at,
+        "per_query_hmms_looked_at": per_query_hmms_looked_at,
+        "num_hmms": num_hmms,
+        "per_query_hmm_chosen": per_query_hmm_chosen,
+    }
+    # this is also unused
+    scoresRecord = np.array(scoresRecord)
+    # this line and below are unused
 
     argDiff = np.argwhere((maxHMM_original-maxHMM_guess) != 0)[:, 0]
     argDiffTop = argDiff[treeSum[maxHMM_guess[argDiff]] == 999]
