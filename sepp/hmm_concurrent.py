@@ -1430,6 +1430,8 @@ def hierchySearch(abstract_algorithm, adjusted_bitscore, early_stop, fakeSimulat
         # the rows are (query sequence, hmm) pair and we only run those pairs using boolean logic?
         scores = saveScoreFromBool(abstract_algorithm, hmmNames, queryHMM, scoreName, noSave=True)
     scoresFull[queryHMM[:, 0], queryHMM[:, 1]] = scores[queryHMM[:, 0], queryHMM[:, 1]]
+    if(adjusted_bitscore):
+        scoresFull[queryHMM[:,0], queryHMM[:,1]] = scoresFull[queryHMM[:,0], queryHMM[:,1]] + np.log2(hmm_sizes[queryHMM[:,1]])
 
     queryHMM_original = np.copy(queryHMM)
     # maxHMM is initally the best scoring hmm which would always be zero since queryHMM[:1] is just zeros initially
