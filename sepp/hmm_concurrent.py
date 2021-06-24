@@ -1487,7 +1487,8 @@ def hierchySearch(abstract_algorithm, adjusted_bitscore, early_stop, fakeSimulat
                 # print(hmm_sizes[queryHMM[:,1]])
                 # print(queryHMM[:,1].size)
                 # print(hmm_sizes[queryHMM[:,1]].size)
-                scoresFull[queryHMM[:,0], queryHMM[:,1]] + np.log2(hmm_sizes[queryHMM[:,1]])
+                print(np.log2(hmm_sizes[queryHMM[:,1]])[0])
+                scoresFull[queryHMM[:,0], queryHMM[:,1]] = scoresFull[queryHMM[:,0], queryHMM[:,1]] + np.log2(hmm_sizes[queryHMM[:,1]])
                 newScores1 = newScores1 + score1_size_weight
                 newScores2 = newScores2 + score2_size_weight
             # new scores 1 stores the scores from one of the children while new scores 2 stores the other child's score
@@ -1522,8 +1523,21 @@ def hierchySearch(abstract_algorithm, adjusted_bitscore, early_stop, fakeSimulat
 
     per_query_hmm_chosen= np.argmax(scoresFull, axis=1)
     maxHMM_original = np.argmax(scores_original, axis=1)
+    print(f"original score: {scores_original[0,1]}")
+    print(f"score full score: {scoresFull[0,1]}")
+    print(f"log2 hmm size: {np.log2(hmm_sizes[1])}")
+    print(f"original score: {scores_original[284,1]}")
+    print(f"score full score: {scoresFull[284,1]}")
+    print(f"log2 hmm size: {np.log2(hmm_sizes[1])}")
+    print(f"original score: {scores_original[2,40]}")
+    print(f"score full score: {scoresFull[2,40]}")
+    print(f"log2 hmm size: {np.log2(hmm_sizes[40])}")
+    print(f"original score: {scores_original[3,40]}")
+    print(f"score full score: {scoresFull[3,40]}")
+    print(f"log2 hmm size: {np.log2(hmm_sizes[40])}")
+
     # print(f"maxHMM_guess: {maxHMM_guess}")
-    print(f"maxHMM_original: {maxHMM_original}")
+    # print(f"maxHMM_original: {maxHMM_original}")
     # so score.npy then is a 2d array where the rows are query sequences and the columns are hmms and it stores the hmmsearch scores inside
     np.save('%s/ensembleData/Searcher/scoreFiles/score.npy' % dirName, scoresFull)
     # Bool.npy is going to be a 2d array where array[a,b] = 1 if hmmsearch was run for query sequence a using hmm b
