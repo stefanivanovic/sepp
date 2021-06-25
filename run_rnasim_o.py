@@ -2,7 +2,7 @@ import os, glob
 import subprocess
 
 indata = "/home/gchu4/scratch/warnow/ensembles/dataset/UnalignFragTree/high_frag/RNASim/" 
-root_tmpdir = "/home/gchu4/scratch/warnow/ensembles/sepp/RNASimO"
+root_tmpdir = "/home/gchu4/scratch/warnow/ensembles/unweighted_output/RNASimO"
 packagedir = "/home/gchu4/scratch/warnow/ensembles/sepp/tools/bundled/Linux/"
 
 for r in range(20):    

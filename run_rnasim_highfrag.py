@@ -2,10 +2,10 @@ import os, glob
 import subprocess
 
 indata = "/home/gchu4/scratch/warnow/ensembles/dataset/UnalignFragTree/high_frag/RNASim/" 
-root_tmpdir = "/home/gchu4/scratch/warnow/ensembles/sepp/RNASimHF"
+root_tmpdir = "/home/gchu4/scratch/warnow/ensembles/unweighted_output/RNASimHF"
 packagedir = "/home/gchu4/scratch/warnow/ensembles/sepp/tools/bundled/Linux/"
 
-for r in range(3, 20):    
+for r in range(12, 20):    
     rep = "R"+str(r)
     unaligned_frag_dir = indata + rep + "/unaligned_frag.txt"
     unaligned_frag = glob.glob(unaligned_frag_dir)[0] 

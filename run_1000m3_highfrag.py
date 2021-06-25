@@ -4,7 +4,7 @@ import subprocess
 evol="M3"
 
 indata = "/home/gchu4/scratch/warnow/ensembles/dataset/UnalignFragTree/high_frag/1000%s/" % evol
-root_tmpdir = "/home/gchu4/scratch/warnow/ensembles/sepp/M3HF"
+root_tmpdir = "/home/gchu4/scratch/warnow/ensembles/unweighted_output/M3HF"
 packagedir = "/home/gchu4/scratch/warnow/ensembles/sepp/tools/bundled/Linux/"
 
 for r in range(12, 20):    
