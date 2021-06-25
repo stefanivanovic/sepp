@@ -1265,7 +1265,7 @@ def scoreAlignment(strategyName):
 
     saveFastaBasic(trueFastaNew, trueKey, trueSeq)
 
-    cmd = "java -jar ./FastSP.jar -ml -r " + trueFastaNew + " -e " + predictionName
+    cmd = "java -jar ./FastSP.jar -ml -r " + trueFastaNew + " -e " + predictionName + " -o " + get_root_temp_dir() + '/data/internalData/' + dataFolderName + '/' + strategyName + '/hmmQueryList/merged/fastsp_output.txt'
 
     scoreInfo  = os.popen(cmd).readlines()
 
