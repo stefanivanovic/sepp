@@ -12,6 +12,8 @@ sepp/lib/ppla*
 test/unittest/data/simulated/*
 test/unittest/data/*
 
+main.config
+upp.config
 home.path
 .DS_Store
 
