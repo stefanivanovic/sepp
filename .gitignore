@@ -11,7 +11,7 @@ sepp/lib/ppla*
 .pydevproject
 test/unittest/data/simulated/*
 test/unittest/data/*
-
+logfile_*
 home.path
 .DS_Store
 
