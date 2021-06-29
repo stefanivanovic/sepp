@@ -240,7 +240,7 @@ def giveHMMversion():
 def addHMMSearchJob(abstract_algorithm, hmmName, queryName, scoreName):
     ensureFolder(scoreName)
     hmmsearch_job = HMMSearchJob(**vars(abstract_algorithm.options.hmmsearch))
-    hmmsearch_job.setup(hmmName, queryName, scoreName, elim=abstract_algorithm.elim)
+    hmmsearch_job.setup(hmmName, queryName, scoreName, elim=abstract_algorithm.elim, trim=False)
     hmmsearch_job.results_on_temp = False
     JobPool().enqueue_job(hmmsearch_job)
 
@@ -725,7 +725,7 @@ def generateNewHMM(abstract_algorithm, strategyName):
         addHMMBuildJob(abstract_algorithm, hmmName, src)
     JobPool().wait_for_all_jobs()
 
-def resortToUPP(strategyName, doResort=True):
+def resortToUPP(strategyName, doResort=False): #GC True
     dataFolderName = giveAllFileNames()[4]
     scoreStrat_file = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/hmmScores/scoresFull/full.npy"
     ensureFolder(scoreStrat_file)
@@ -887,6 +887,7 @@ def alignQueries(abstract_algorithm, strategyName):
     dataFolderName = giveAllFileNames()[4]
     queryName = giveQueryFileName()
     queryData = loadFastaFormat(queryName)
+    #queryToHmm = np.load(get_root_temp_dir() + "/data/internalData/%s/%s/queryToHmm/original.npy" % (dataFolderName, strategyName))
     queryToHmm = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/HMMused.npy")
     uppHMM = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/UPPused.npy")
 
@@ -917,6 +918,7 @@ def alignQueries(abstract_algorithm, strategyName):
 def mergeAlignments(abstract_algorithm, strategyName, overlapLowercase=True):
     dataFolderName = giveAllFileNames()[4]
     queryToHmm = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/HMMused.npy")
+    #queryToHmm = np.load(get_root_temp_dir() + "/data/internalData/%s/%s/queryToHmm/original.npy" % (dataFolderName, strategyName))
     predictionDataFull = []
     backboneKeys, backboneSeqs = loadFastaBasic(get_root_temp_dir() + "/data/internalData/" + dataFolderName + '/hmmSeqAlign/' + str(0) + '.fasta')
     backBoneChoice = np.zeros((queryToHmm.shape[0], len(backboneSeqs[0]))).astype(str)
@@ -1201,7 +1203,7 @@ def checkAlignmentsValid(strategyName):
                         print ("Issue")
                         quit()
 
-def buildAlignMerge(abstract_algorithm, strategyName, doResort=True):
+def buildAlignMerge(abstract_algorithm, strategyName, doResort=False): # GC: True
     generateNewHMM(abstract_algorithm, strategyName)
 
     saveNewScores(abstract_algorithm, strategyName)

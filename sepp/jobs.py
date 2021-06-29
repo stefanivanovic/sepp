@@ -307,7 +307,7 @@ class HMMAlignJob(ExternalSeppJob):
         self.molecule = None
 
     def setup(self, hmmmodel, fragments, output_file, base_alignment=None,
-              trim=True, molecule="dna", **kwargs):
+              trim=False, molecule="dna", **kwargs): # GC True
         """
         Setup job parameters when those are externally decided.
         Use setup_for_subproblem when possible.
