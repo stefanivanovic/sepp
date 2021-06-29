@@ -269,7 +269,7 @@ def giveHMMversion():
 def addHMMSearchJob(abstract_algorithm, hmmName, queryName, scoreName):
     ensureFolder(scoreName)
     hmmsearch_job = HMMSearchJob(tblout=True, **vars(abstract_algorithm.options.hmmsearch))
-    hmmsearch_job.setup(hmmName, queryName, scoreName, filters=False, elim=abstract_algorithm.elim)
+    hmmsearch_job.setup(hmmName, queryName, scoreName, filters=False, elim=abstract_algorithm.elim) #, trim=False)
     hmmsearch_job.results_on_temp = False
     JobPool().enqueue_job(hmmsearch_job)
 
@@ -283,7 +283,7 @@ def addHMMAlignJob(abstract_algorithm, hmmName, queryName, predictionName):
     ensureFolder(predictionName)
     hmmalign_job = HMMAlignJob(**vars(abstract_algorithm.options.hmmalign))
     # _LOG.debug(str(abstract_algorithm.options.hmmalign))
-    hmmalign_job.setup(hmmName, queryName, predictionName)
+    hmmalign_job.setup(hmmName, queryName, predictionName, trim=False)
     JobPool().enqueue_job(hmmalign_job)
 
 def runHMMbuild(abstract_algorithm, hmmName, seqName):
@@ -295,7 +295,7 @@ def runHMMbuild(abstract_algorithm, hmmName, seqName):
 def runHMMalign(abstract_algorithm, hmmName, queryName, predictionName):
     # ensureFolder(predictionName)
     hmmalign_job = HMMAlignJob()
-    hmmalign_job.setup(hmmName, queryName, predictionName, **vars(abstract_algorithm.options.hmmalign))
+    hmmalign_job.setup(hmmName, queryName, predictionName, **vars(abstract_algorithm.options.hmmalign), trim=False)
     hmmalign_job.run()
 
 def saveScoreSimple(abstract_algorithm, hmmNames, queryNames, scoreName):
@@ -804,7 +804,7 @@ def generateNewHMM(abstract_algorithm, strategyName):
         addHMMBuildJob(abstract_algorithm, hmmName, src)
     JobPool().wait_for_all_jobs()
 
-def resortToUPP(strategyName, doResort=True):
+def resortToUPP(strategyName, doResort=False):
     dataFolderName = giveAllFileNames()[4]
     scoreStrat_file = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/hmmScores/scoresFull/full.npy"
     ensureFolder(scoreStrat_file)
@@ -1280,7 +1280,7 @@ def checkAlignmentsValid(strategyName):
                         print ("Issue")
                         quit()
 
-def buildAlignMerge(abstract_algorithm, strategyName, doResort=True):
+def buildAlignMerge(abstract_algorithm, strategyName, doResort=False):
     generateNewHMM(abstract_algorithm, strategyName)
 
     saveNewScores(abstract_algorithm, strategyName)
