@@ -106,8 +106,9 @@ def run_upp_strats(abstract_algorithm, dirname, hier_upp, adjusted_bitscore, ear
     elif adjusted_bitscore:
         # this forces UPP2 to load fullAdjusted.npy instead of score.np
         strat = "adjusted_bitscore"
-    if (strat is None):
-        raise Exception("Unsupported strategy")
+    else:
+        strat = "upp"
+
     _LOG.info("[processing %s]" % strat)
     _LOG.info("[running scoresToHMMSeq]")
     scoresToHMMSeq(strat)

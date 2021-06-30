@@ -735,8 +735,8 @@ def scoresToHMMSeq(strategyName):
     scores = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmScores/fullAdjusted.npy")
     ensureFolder(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy")
     ensureFolder(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/newHMM/newHMMseq/")
-    if strategyName in ["adjusted_bitscore"]: # ['stefan_UPP', 'stefan_UPPadjusted']:
-        if strategyName == 'stefan_UPP':
+    if strategyName in ["adjusted_bitscore", "upp"]: # ['stefan_UPP', 'stefan_UPPadjusted']:
+        if strategyName == "upp":
             scores = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmScores/full.npy")
         scores = scores / np.max(scores)
         treeData = findDecomposition()

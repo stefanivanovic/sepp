@@ -253,7 +253,7 @@ class UPPExhaustiveAlgorithm(ExhaustiveAlgorithm):
         return ExhaustiveAlgorithm.check_options(self)
 
     def merge_results(self):
-        if not hasattr(options(), "upp2"):
+        if not hasattr(options(), "upp2") or not options().upp2.decomp_only:
             assert \
                 len(self.root_problem.get_children()) == 1, \
                 "Currently UPP works with only one placement subset."
@@ -344,7 +344,7 @@ class UPPExhaustiveAlgorithm(ExhaustiveAlgorithm):
     #        self.results = extendedAlignment
 
     def output_results(self):
-        if not hasattr(options(), "upp2"):
+        if not hasattr(options(), "upp2") or not options().upp2.decomp_only:
             extended_alignment = self.results
             _LOG.info("Generating output. ")
             outfilename = self.get_output_filename("alignment.fasta")
@@ -438,11 +438,11 @@ class UPPExhaustiveAlgorithm(ExhaustiveAlgorithm):
         super().build_jobs()
 
     def connect_jobs(self):
-        if not hasattr(options(), "upp2"):
+        if not hasattr(options(), "upp2") or not options().upp2.decomp_only:
             return super().connect_jobs()
 
     def enqueue_firstlevel_job(self):
-        if not hasattr(options(), "upp2"):
+        if not hasattr(options(), "upp2") or not options().upp2.decomp_only:
             return super().enqueue_firstlevel_job()
         else:
             _LOG.info("Not enqueueing jobs because flag decomp_only was %d" % options().upp2.decomp_only)
