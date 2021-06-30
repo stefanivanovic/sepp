@@ -1,5 +1,6 @@
 import copy
 import random
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,8 +22,6 @@ trueAlignment = ''
 predictionName = ''
 dirName = ''
 dataSetName = ''
-
-_LOG = get_logger(__name__)
 
 _LOG = get_logger(__name__)
 
@@ -56,19 +55,20 @@ def arrayToSeq(array):
     seqs = np.array(seqs)
     return seqs
 
-def setAllFileNames(givenHSF, givenQN, givenTA, givenPN, givenDir, givenDSN):
-    global hmmSeqFile 
-    hmmSeqFile = givenHSF
-    global queryName 
-    queryName = givenQN
+def set_all_file_names(hmm_folder_prefix, fragment_file, true_alignment, prediction_name, root_temp_dir, dataset_name):
+    global hmmSeqFile
+    hmmSeqFile = hmm_folder_prefix
+    global queryName
+    queryName = fragment_file
+    # TODO: this is something we need to remove
     global trueAlignment
-    trueAlignment = givenTA
+    trueAlignment = true_alignment
     global predictionName
-    predictionName = givenPN
+    predictionName = prediction_name
     global dirName
-    dirName = givenDir
+    dirName = root_temp_dir
     global dataSetName
-    dataSetName = givenDSN
+    dataSetName = dataset_name
 
 def giveAllFileNames():
     global hmmSeqFile
@@ -81,6 +81,20 @@ def giveAllFileNames():
     return fileNames
 
 def giveQueries():
+    ''' This file returns every other line without the first character
+    starting with the first line. This will return the sequence names in some
+    fasta files but will break for other fasta files. Some reasons for why I believe this is true below.
+    1. Comments: semicolons, although less common, can appear in fasta files
+    2. New lines: There can be any number of new lines to my knowledge inside a fasta files between
+    the end of one sequnece and the beginning of next
+    3. Interleaved vs sequential: A very common fasta file representation actually puts fasta sequneces
+    on multiple lines limited to 80-120 characters. Programs commonly output their sequences in this format
+    as well.
+    The reason why this code correctly is because upp outputs fragments in a sequential format with
+    no additional new lines or comments and seemingly this function is only called on UPP outputs.
+    Not a huge concern but it's something we should consider changing since there are much more robust ways of
+    doing this through libraries
+    '''
     queryName = giveQueryFileName()
     file_obj = open(queryName)
     queries = []
@@ -167,24 +181,31 @@ def saveFastaBasic(name, keys, seqs):
     data[-1] = data[-1] + '\n'
     saveFasta(name, data)
 
-def saveSequenceFileNames():
+def save_sequence_filenames():
     fileNames = giveAllFileNames()
-    src0 = fileNames[0]
+    hmm_folder_prefix = fileNames[0]
     sequenceFileNames = []
     Anums = []
-    namesA = os.listdir(src0)
+    namesA = os.listdir(hmm_folder_prefix)
     for nameA in namesA:
         if nameA[:2] == 'A_':
             Anum = nameA.split('_')
             Anum = int(Anum[-1])
-            src1 = src0 + nameA + '/'
+            src1 = hmm_folder_prefix + nameA + '/'
             names = os.listdir(src1)
             for name in names:
                 if name[-5:] == 'fasta':
                     src2 = src1 + name
                     sequenceFileNames.append(src2)
                     Anums.append(Anum)
+    # this contains all the .fasta files that were found by using
+    # hmm_folder_prefix/A_*/*.fasta
     sequenceFileNames = np.array(sequenceFileNames)
+    # from here to 28 lines below this line does deduplication
+    # if the length of one fasta file equals the length of another file, then they are never going to
+    # have intersections so np.intersect1d(keys1, keys2) == len(keys1) would always be false if upp decomposition
+    # works properly. However, UPP decomposition, after looking at the files manually, is not exactly disjoint at the leaf level
+    # why is upp decomposition like this?
     Anums = np.array(Anums)
     removalArgs = []
     for a in range(len(sequenceFileNames)):
@@ -196,6 +217,9 @@ def saveSequenceFileNames():
                     if len(np.intersect1d(keys1, keys2)) == len(keys1):
                         removalArgs.append(b)
     keepArgs = np.arange(len(sequenceFileNames))
+    # one effect i observed was that having removalArgs makes it so that
+    # further down the edges and children no longer consider themselves their own parents
+    # not sure why this happpens in the first place since i feel like it shouldn't
     removalArgs = np.array(removalArgs)
     keepArgs = keepArgs[np.isin(keepArgs, removalArgs) == False]
 
@@ -211,6 +235,8 @@ def saveSequenceFileNames():
     np.save(sequenceFileNames_saveName, sequenceFileNames)
 
 def giveSequenceFileNames():
+    ''' This function returns all the sequence file names inside root_temp_dir/A_*/*.fasta
+    '''
     inputFiles = giveAllFileNames()
     dataFileName = inputFiles[4]
     sequenceFileNames_saveName = get_root_temp_dir() + '/data/internalData/' + dataFileName + '/seqFileNames/names.npy'
@@ -222,7 +248,10 @@ def giveQueryFileName():
     queryName = fileNames[1]
     return queryName
 
-def saveInitialHMM(abstract_algorithm, minSize=1):
+def save_initial_hmm(abstract_algorithm):
+    ''' This function builds hmms on every single input inside sequenceFileNames
+    which is equivalent to building hmms on every single fasta file in root_temp_dir/A_*/*.fasta
+    '''
     sequenceFileNames = giveSequenceFileNames()
     for a in range(0, len(sequenceFileNames)):
         src = sequenceFileNames[a]
@@ -239,8 +268,8 @@ def giveHMMversion():
 
 def addHMMSearchJob(abstract_algorithm, hmmName, queryName, scoreName):
     ensureFolder(scoreName)
-    hmmsearch_job = HMMSearchJob(**vars(abstract_algorithm.options.hmmsearch))
-    hmmsearch_job.setup(hmmName, queryName, scoreName, elim=abstract_algorithm.elim)
+    hmmsearch_job = HMMSearchJob(tblout=True, **vars(abstract_algorithm.options.hmmsearch))
+    hmmsearch_job.setup(hmmName, queryName, scoreName, filters=False, elim=abstract_algorithm.elim) #, trim=False)
     hmmsearch_job.results_on_temp = False
     JobPool().enqueue_job(hmmsearch_job)
 
@@ -254,7 +283,7 @@ def addHMMAlignJob(abstract_algorithm, hmmName, queryName, predictionName):
     ensureFolder(predictionName)
     hmmalign_job = HMMAlignJob(**vars(abstract_algorithm.options.hmmalign))
     # _LOG.debug(str(abstract_algorithm.options.hmmalign))
-    hmmalign_job.setup(hmmName, queryName, predictionName)
+    hmmalign_job.setup(hmmName, queryName, predictionName, trim=False)
     JobPool().enqueue_job(hmmalign_job)
 
 def runHMMbuild(abstract_algorithm, hmmName, seqName):
@@ -266,10 +295,15 @@ def runHMMbuild(abstract_algorithm, hmmName, seqName):
 def runHMMalign(abstract_algorithm, hmmName, queryName, predictionName):
     # ensureFolder(predictionName)
     hmmalign_job = HMMAlignJob()
-    hmmalign_job.setup(hmmName, queryName, predictionName, **vars(abstract_algorithm.options.hmmalign))
+    hmmalign_job.setup(hmmName, queryName, predictionName, **vars(abstract_algorithm.options.hmmalign), trim=False)
     hmmalign_job.run()
 
 def saveScoreSimple(abstract_algorithm, hmmNames, queryNames, scoreName):
+    ''' This function saves to scoreName a 2d numpy array where the rows define the
+    query sequences ordered by the order inside giveQueries which is the order inside the actual fasta file.
+    The columns are the hmm files ordered by the array hmmNames which is the order of fasta files returned
+    whnen calling giveSequenceFileNames. The values are the hmmsearch scores.
+    '''
     queryDict = {}
     queries = giveQueries()
     for queryNum in range(0, len(queries)):
@@ -284,7 +318,8 @@ def saveScoreSimple(abstract_algorithm, hmmNames, queryNames, scoreName):
         scoreNameTemp = get_root_temp_dir() + "/data/temporaryStorage/temp_" + str(randIntArr[a]) + ".txt"
         queryName = queryNames[a]
         ensureFolder(scoreNameTemp)
-        addHMMAlignJob(abstract_algorithm, hmmName, queryName, scoreNameTemp)
+        # BUG: this should be hmmmsearch I'm pretty sure
+        addHMMSearchJob(abstract_algorithm, hmmName, queryName, scoreNameTemp)
     JobPool().wait_for_all_jobs()
 
     for a in range(0, len(hmmNames)):
@@ -369,8 +404,10 @@ def saveScoreFromBool(abstract_algorithm, hmmNames, queryHMM, scoreName, noSave=
             ensureFolder(queryNameTemp)
             saveFasta(queryNameTemp, queryNow)
             ensureFolder(scoreNameTemp)
-            addHMMAlignJob(abstract_algorithm, hmmName, queryNameTemp, scoreNameTemp)
+            # BUG: this should be hmmmsearch I'm pretty sure
+            addHMMSearchJob(abstract_algorithm, hmmName, queryNameTemp, scoreNameTemp)
     JobPool().wait_for_all_jobs()
+    _LOG.debug(f"saveScoreFromBool: number of hmms - {len(hmmNames)}")
     for a in range(0, len(hmmNames)):
         argsInclude = queryHMM[:, 0][queryHMM[:, 1] == a]
         if argsInclude.shape[0] > 0:
@@ -379,7 +416,9 @@ def saveScoreFromBool(abstract_algorithm, hmmNames, queryHMM, scoreName, noSave=
             file_obj = open(scoreNameTemp)
             count1 = 0
             for line_number, i in enumerate(file_obj):
-                ar = i.split('  ')
+                # make sure this is literally two white spcae characters because otherwise it won't work
+                # it also hinges on the assumption that the hmmsearch output is the --tblout format and not the default -o
+                ar = i.split("  ")
                 listI = []
                 bitscoreList = []
                 if line_number == 1:
@@ -388,7 +427,10 @@ def saveScoreFromBool(abstract_algorithm, hmmNames, queryHMM, scoreName, noSave=
                     argSpace = np.argwhere(np.array(list(i)) == ' ')[:, 0]
                 if (len(ar) >= 30) and (line_number >= 3):
                     sequenceName = i[:20].replace(' ', '')
+                    # try:
                     bitScore = float(i[posScore-1:posScore+5].replace(' ', ''))
+                    # except:
+                    #     bitScore = 42112358
                     dataOld.append([sequenceName, bitScore])
             dataOld = np.array(dataOld)
             for b in range(0, len(dataOld)):
@@ -409,7 +451,10 @@ def compareScores(strategyName):
     plt.plot(np.max(scoreStrat, axis=1)-np.max(scoreUPP, axis=1))
     plt.show()
 
-def saveScoresOriginal(abstract_algorithm):
+def save_scores_original(abstract_algorithm):
+    ''' This function saves the results of hmmsearch bitscores in full.npy.
+    see saveScoreSimple for more information (rows = query sequences, columns = hmm files)
+    '''
     sequenceFileNames = giveSequenceFileNames()
     hmmNames = []
     queryNames = []
@@ -480,7 +525,12 @@ def saveScoresBySeq():
     ensureFolder(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmScores/full.npy")
     np.save(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmScores/full.npy", data)
 
-def saveDecomposition():
+def save_decomposition():
+    ''' This functions stores into treeDecomp.npy which is a numpy array of tree decompositions where
+    treeDecomp[a,b] = 1 if a is a parent of b in the rooted representation of the decomposition tree
+    hmmSets.npy stores the sequence names for each hmm in the order defined by giveSequenceFileNames
+    which is the same order as the HMMs in most functions.
+    '''
     dataFolderName = giveAllFileNames()[4]
     sets = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmSets.npy", allow_pickle=True)
     treeData = np.zeros((len(sets), len(sets)))
@@ -492,10 +542,16 @@ def saveDecomposition():
     ensureFolder(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/treeDecomp.npy")
     np.save(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/treeDecomp.npy", treeData)
 
-def saveHMMsets():
+def save_hmm_sets():
+    ''' This function saves a 2d array whose rows are the sequence file names order which is
+    also the same order as the HMMs in a lot of functions. The columns are variable but store
+    the sequence names for each sequence file in a row. Each row probbaly contains different numbers of
+    columns.
+    '''
     sequenceFileNames = giveSequenceFileNames()
     sets = []
     for a in range(0, len(sequenceFileNames)):
+        # print(f"{a}: {sequenceFileNames[a]}")
         src = sequenceFileNames[a]
         set1 = []
         file_obj = open(src)
@@ -523,9 +579,19 @@ def findDecomposition():
     return treeData
 
 def findTreeEdges():
+    ''' This function returns a 2darray where the array[a,b] = 1
+    if there is an edge from a to b. From what I can tell,
+    argMax is the node with the most children so right now
+    and argMin is the node with the least number of children from the
+    list of argMax's parents. There essentially is an edge iteratively constructed
+    from selecting whoever has the most children right now so whoever is the highest up in the tree
+    to whoever has the least children right now from the parents of the first selection. In the second search,
+    we don't exclude nodes we have already visited.
+    '''
     treeData = findDecomposition()
     treeData[np.arange(treeData.shape[0]), np.arange(treeData.shape[0])] = 0
     edges = np.zeros(treeData.shape)
+    # this would be counting the number of children each HMM has
     treeSum = np.sum(treeData, axis=1)
     nodes = []
     for a in range(treeData.shape[0]):
@@ -563,7 +629,12 @@ def interweive(data):
     data4 = data[arange3, arange2]
     return data4
 
-def reallignHMMSeq():
+def realign_hmm_seq():
+    ''' This function takes individual sequences from sequenceFileNames
+    and induces them on the root sequence which is the fasta file in the
+    0th hmm folder(A_0_0). This gets saved to n.fasta where n is the index in the
+    sequneceFileNames, which is the same as the suffix number in the folder structure A_0_n.
+    '''
     sequenceFileNames = giveSequenceFileNames()
     rootName = sequenceFileNames[0]
     rootKeys, rootSeqs = loadFastaBasic(rootName)
@@ -585,7 +656,11 @@ def compareHMM():
         cmd = 'diff ' + HMM1 + ' ' + HMM2
         print (cmd)
 
-def saveAdjustedScore():
+def save_adjusted_score():
+    ''' This function takes every single hmmsearch bitscore result thaht was stored in full.npy
+    and multiplies them by the log base 2 of the size of the sequence set the hmm was built on.
+    These adjusted scores get saved to fullAdjusted.npy
+    '''
     dataFolderName = giveAllFileNames()[4]
     sets = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmSets.npy", allow_pickle=True)
     sizes1 = []
@@ -599,14 +674,14 @@ def saveAdjustedScore():
     ensureFolder(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmScores/fullAdjusted.npy")
     np.save(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmScores/fullAdjusted.npy", scores)
 
-def saveInitialSteps(abstract_algorithm):
-    saveSequenceFileNames()
-    saveInitialHMM(abstract_algorithm)
-    saveScoresOriginal(abstract_algorithm)
-    saveHMMsets()
-    saveDecomposition()
-    reallignHMMSeq()
-    saveAdjustedScore()
+def save_initial_steps(abstract_algorithm):
+    save_sequence_filenames()
+    save_initial_hmm(abstract_algorithm)
+    save_scores_original(abstract_algorithm)
+    save_hmm_sets()
+    save_decomposition()
+    realign_hmm_seq()
+    save_adjusted_score()
 
 def doPoisonRemoval(maxHMM, scores, queryNum):
     treeData = findDecomposition()
@@ -660,8 +735,8 @@ def scoresToHMMSeq(strategyName):
     scores = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmScores/fullAdjusted.npy")
     ensureFolder(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy")
     ensureFolder(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/newHMM/newHMMseq/")
-    if strategyName in ['stefan_UPP', 'stefan_UPPadjusted']:
-        if strategyName == 'stefan_UPP':
+    if strategyName in ["adjusted_bitscore", "upp"]: # ['stefan_UPP', 'stefan_UPPadjusted']:
+        if strategyName == "upp":
             scores = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmScores/full.npy")
         scores = scores / np.max(scores)
         treeData = findDecomposition()
@@ -669,17 +744,19 @@ def scoresToHMMSeq(strategyName):
         maxHMM = np.argmax(scores, axis=1).astype(int)
         HMMunique, HMMinverse = np.unique(maxHMM, return_inverse=True)
         HMMinverse = np.array([np.arange(HMMinverse.shape[0]), HMMinverse]).T
-        print(f"saving to {get_root_temp_dir()}/data/internalData/{dataFolderName}/{strategyName}/queryToHmm/original.npy")
+        _LOG.debug(f"saving to {get_root_temp_dir()}/data/internalData/{dataFolderName}/{strategyName}/queryToHmm/original.npy")
         np.save(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy", HMMinverse)
         for a in range(0, len(HMMunique)):
             HMMnum = HMMunique[a]
             name = get_root_temp_dir() + "/data/internalData/" + dataFolderName + '/hmmSeqAlign/' + str(a) + '.fasta'
             keys, seqs = loadFastaBasic(name)
             saveFastaBasic(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/newHMM/newHMMseq/" + str(a) + ".fasta", keys, seqs)
-    if strategyName in ['stefan_fastUPP', 'stefan_fastUPPexception', 'stefan_fastUPPearly']:
+    if strategyName in ["hierarchical"]: # ['stefan_fastUPP', 'stefan_fastUPPexception', 'stefan_fastUPPearly']:
         if strategyName == 'stefan_fastUPPearly':
             scoresFull = np.load('%s/ensembleData/Searcher/scoreFiles/Early_score.npy' % dirName)
         else:
+            # normally score.npy stores the raw bitscores while fullAdjusted.npy stores the adjusted bitscores
+            # however if the
             scoresFull = np.load('%s/ensembleData/Searcher/scoreFiles/score.npy' % dirName)
         maxHMM = np.argmax(scoresFull, axis=1).astype(int)
         if strategyName == 'stefan_fastUPPexception':
@@ -695,7 +772,9 @@ def scoresToHMMSeq(strategyName):
         np.save(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy", HMMinverse)
         for a in range(0, len(HMMunique)):
             HMMnum = HMMunique[a]
+            # this is the induced version of each backbone subalignment on the full backbone alignment
             name = get_root_temp_dir() + "/data/internalData/" + dataFolderName + '/hmmSeqAlign/' + str(HMMnum) + '.fasta'
+            # this is probably space and time inefficient. We could most likely just move or create a symlink
             keys, seqs = loadFastaBasic(name)
             saveFastaBasic(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/newHMM/newHMMseq/" + str(a) + ".fasta", keys, seqs)
 
@@ -725,7 +804,7 @@ def generateNewHMM(abstract_algorithm, strategyName):
         addHMMBuildJob(abstract_algorithm, hmmName, src)
     JobPool().wait_for_all_jobs()
 
-def resortToUPP(strategyName, doResort=True):
+def resortToUPP(strategyName, doResort=False):
     dataFolderName = giveAllFileNames()[4]
     scoreStrat_file = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/hmmScores/scoresFull/full.npy"
     ensureFolder(scoreStrat_file)
@@ -1201,7 +1280,7 @@ def checkAlignmentsValid(strategyName):
                         print ("Issue")
                         quit()
 
-def buildAlignMerge(abstract_algorithm, strategyName, doResort=True):
+def buildAlignMerge(abstract_algorithm, strategyName, doResort=False):
     generateNewHMM(abstract_algorithm, strategyName)
 
     saveNewScores(abstract_algorithm, strategyName)
@@ -1290,13 +1369,19 @@ def compareToUPP():
     print (seqs2[0])
 
 
-def hierchySearch(abstract_algorithm, fakeSimulate=False):
-
-    earlyStop = False
+def hierchySearch(abstract_algorithm, adjusted_bitscore, early_stop, fakeSimulate=False):
     observeNephew = False
+
     dataFolderName = giveAllFileNames()[4]
     # np.load("./data/internalData/" + dataFolderName + "/hmmScores/full.npy")
+    # scores_original is the raw bitscores without the adjusted weights
     scores_original = np.load(get_root_temp_dir() + "/data/internalData/%s/hmmScores/full.npy" % (dataFolderName))
+    # so here the size of each hmm is stored in hmm_sizes where hmm_sizes[i] is the size of the ith hmm
+    hmm_sets = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmSets.npy", allow_pickle=True)
+    hmm_sizes = []
+    for current_hmm_set in hmm_sets:
+        hmm_sizes.append(len(current_hmm_set))
+    hmm_sizes = np.array(hmm_sizes)
 
     hmmNames = []
     sequenceFileNames = giveSequenceFileNames()
@@ -1311,12 +1396,21 @@ def hierchySearch(abstract_algorithm, fakeSimulate=False):
     Nquery = int(len(queryData))
     Nhmm = int(len(hmmNames))
 
+    # this returns a 2d numpy array where array[a,b] = 1 when a has an edge to b
     edges = findTreeEdges()
+    # since edges is only the immediate children, argsorting and getting the last two
+    # is then the two children of the node so this is a 2d array where
+    # every row represents an HMM and the two array elements are the children HMMs,
+    # or the indices/number representation/order inside edges/whatever of those children HMMs
     children = np.argsort(edges, axis=1)[:, -2:]
+    # this is the number of children that each HMM has so it's a 1d array where
+    # each childNum[2] returns the number of direct children for the 2nd HMM
     childNum = np.sum(edges, axis=1)
     brotherNode = findBrotherNode()
 
+    # this returns a 2d numpy array where array[a,b] = 1 when a is a parent(not just the direct parent) of b
     treeData = findDecomposition()
+    # this has the number of descendents for for each HMM in a 1d array
     treeSum = np.sum(treeData, axis=1)
     sortedSize = np.argsort(treeSum)
     scoresFull = np.zeros((Nquery, Nhmm)) - 1000
@@ -1325,39 +1419,59 @@ def hierchySearch(abstract_algorithm, fakeSimulate=False):
 
     queryPart = np.arange(Nquery * len(initialSearchSet)) % Nquery
     hmmPart = np.array(initialSearchSet).repeat(Nquery)
-
+    # here we run hmmsearch on every singly query sequence againstn the 0 hmm, or the root hmm
     queryHMM = np.array([queryPart, hmmPart]).T
     scoreName = ''
     if fakeSimulate:
         scores = np.copy(scores_original)
     else:
+        # I guess this method is called saveScoreFromBool since it runs hmmsearch just like
+        # saveScore but only runs query sequences according to a 2d table where
+        # the rows are (query sequence, hmm) pair and we only run those pairs using boolean logic?
         scores = saveScoreFromBool(abstract_algorithm, hmmNames, queryHMM, scoreName, noSave=True)
     scoresFull[queryHMM[:, 0], queryHMM[:, 1]] = scores[queryHMM[:, 0], queryHMM[:, 1]]
+    if(adjusted_bitscore):
+        scoresFull[queryHMM[:,0], queryHMM[:,1]] = scoresFull[queryHMM[:,0], queryHMM[:,1]] + np.log2(hmm_sizes[queryHMM[:,1]])
 
     queryHMM_original = np.copy(queryHMM)
+    # maxHMM is initally the best scoring hmm which would always be zero since queryHMM[:1] is just zeros initially
+    # if we do an argmax along axis 1 then we are looking at the indices for each row the maximum scoring HMM, or
+    # in this case the only hmm, hmm 0.
+    # so this argmax can be skipped entirely, especially since bool_done is hardcoded to zero anyways
     maxHMM = np.argmax(scoresFull, axis=1)
-    boolDone = np.zeros((Nquery, Nhmm))
-    boolDone[:, 0] = 1
+    bool_done = np.zeros((Nquery, Nhmm))
+    # for every query sequence, we mark the 0th root hmm as done, or 1,
+    # since we already ran them
+    bool_done[:, 0] = 1
     maxHMMlist = []
     scoresRecord = []
 
-    a = 1
     done = False
+    num_iteration = 0
     while not done:
+        # so at every iteration, maxNotLeaf is going to be updated with the
+        # children of maxHMM that have at least one child
+        # so this is called maxNotLeaf since it's the children of maxHMM that are not leaves
+        # friendly reminder that maxHMM is an array where the ith element is the ith queries best HMM
         maxNotLeaf = np.argwhere(childNum[maxHMM] != 0)[:, 0]
+
         if observeNephew:
             maxHMMChild_original = children[maxHMM[maxNotLeaf]]
             maxHMMChild_original = np.concatenate((maxHMMChild_original, children[brotherNode[maxHMM[maxNotLeaf]]]), axis=1)
         else:
             maxHMMChild_original = children[maxHMM[maxNotLeaf]]
-
+        # we setup the queryHMM to be all the immediate children of the maxHMM that are not leaves
+        # with all the query sequences so we do the arange with division so that for the two children
+        # we can give one query sequence to both of them and the array just gets flattened like 00 11 22 etc
         maxHMMChild = np.copy(maxHMMChild_original).reshape((maxHMMChild_original.size,))
         queryCorrespond = maxNotLeaf[np.arange(maxHMMChild.size) // (maxHMMChild_original.shape[1]) ]
         queryToHMM_try = np.array([queryCorrespond, maxHMMChild]).T
-        queryHMM = queryToHMM_try[boolDone[queryToHMM_try[:, 0], queryToHMM_try[:, 1] ] == 0]
-        boolDone[queryHMM[:, 0], queryHMM[:, 1] ] = 1
+        queryHMM = queryToHMM_try[bool_done[queryToHMM_try[:, 0], queryToHMM_try[:, 1] ] == 0]
+        # and now we can mark these HMMs done so that we don't pick these again via a mask next time
+        bool_done[queryHMM[:, 0], queryHMM[:, 1] ] = 1
 
         if queryHMM.shape[0] != 0:
+            num_iteration += 1
             scoreName = ''
             if fakeSimulate:
                 scores = np.copy(scores_original)
@@ -1367,28 +1481,66 @@ def hierchySearch(abstract_algorithm, fakeSimulate=False):
             scoresFull[queryHMM[:, 0], queryHMM[:, 1]] = np.copy(scores[queryHMM[:, 0], queryHMM[:, 1]])
             newScores1 = scoresFull[maxNotLeaf, maxHMMChild_original[:, 0]]
             newScores2 = scoresFull[maxNotLeaf, maxHMMChild_original[:, 1]]
+            if(adjusted_bitscore):
+                # I'm getting the sizes of the hmms and then adjusting the bitscores here
+                score1_size_weight = np.log2(hmm_sizes[maxHMMChild_original[:,0]])
+                score2_size_weight = np.log2(hmm_sizes[maxHMMChild_original[:,1]])
+                # print(queryHMM[:,1])
+                # print(hmm_sizes[queryHMM[:,1]])
+                # print(queryHMM[:,1].size)
+                # print(hmm_sizes[queryHMM[:,1]].size)
+                # print(np.log2(hmm_sizes[queryHMM[:,1]])[0])
+                scoresFull[queryHMM[:,0], queryHMM[:,1]] = scoresFull[queryHMM[:,0], queryHMM[:,1]] + np.log2(hmm_sizes[queryHMM[:,1]])
+                newScores1 = newScores1 + score1_size_weight
+                newScores2 = newScores2 + score2_size_weight
+            # new scores 1 stores the scores from one of the children while new scores 2 stores the other child's score
+            # so if we do the argmax along the 0 axis then we get the best HMM for each query sequence after comparing the two children
             newScoresMax = np.argmax(np.array([newScores1, newScores2]), axis=0)
-
+            # this new HMM is now used to get a list of new children from the original children list for every query sequence
             newChild = maxHMMChild_original[np.arange(newScores1.shape[0]), newScoresMax]
-            if earlyStop:
+            # now the entries of maxHMM can be updated with the new children info since again
+            # friendly reminder as stated above that maxHMM is an array where the ith element is the ith queries best HMM
+            # if it's early stop and the argmax happens to be ourselves, then the bool_done array will already have been populated
+            # for every query sequence  so we won't enter here since queryHMM.shape[0] would be zero and likewise in saveScoreFromBool
+            # even if it did run
+            if early_stop:
                 maxHMM = np.argmax(scoresFull, axis=1)
             else:
                 maxHMM[maxNotLeaf] = newChild
 
             scoreStep = scoresFull[np.arange(maxHMM.shape[0]), maxHMM]
             scoresRecord.append(np.copy(scoreStep))
+            # Not sure what this is but it's unused
+            # it's possible that previously the hmm indices were being recorded but now we just get them using argmax
             maxHMMlist.append(np.copy(maxHMM[:10]))
         else:
             done = True
-        a += 1
+    per_query_hmms_looked_at = bool_done.sum(axis=1)
+    num_hmms_looked_at = np.where(bool_done.sum(axis=0) > 0, 1, 0).sum()
+    num_hmms = len(bool_done[0])
+    _LOG.info(f"num_hmms_looked at: {num_hmms_looked_at} hmms")
+    _LOG.info(f"UPP would have looked at: {num_hmms} hmms")
+    _LOG.info(f"num_iteration in hierarchical search: {num_iteration}")
 
-    scoresRecord = np.array(scoresRecord)
-
-    np.save('%s/ensembleData/Searcher/scoreFiles/score.npy' % dirName, scoresFull)
-    np.save('%s/ensembleData/Searcher/scoreFiles/Bool.npy' % dirName, boolDone)
-
-    maxHMM_guess = np.argmax(scoresFull, axis=1)
+    per_query_hmm_chosen= np.argmax(scoresFull, axis=1)
     maxHMM_original = np.argmax(scores_original, axis=1)
+
+    # print(f"maxHMM_guess: {maxHMM_guess}")
+    # print(f"maxHMM_original: {maxHMM_original}")
+    # so score.npy then is a 2d array where the rows are query sequences and the columns are hmms and it stores the hmmsearch scores inside
+    np.save('%s/ensembleData/Searcher/scoreFiles/score.npy' % dirName, scoresFull)
+    # Bool.npy is going to be a 2d array where array[a,b] = 1 if hmmsearch was run for query sequence a using hmm b
+    np.save('%s/ensembleData/Searcher/scoreFiles/Bool.npy' % dirName, bool_done)
+
+    return {
+        "num_hmms_looked_at": num_hmms_looked_at,
+        "per_query_hmms_looked_at": per_query_hmms_looked_at,
+        "num_hmms": num_hmms,
+        "per_query_hmm_chosen": per_query_hmm_chosen,
+    }
+    # this is also unused
+    scoresRecord = np.array(scoresRecord)
+    # this line and below are unused
 
     argDiff = np.argwhere((maxHMM_original-maxHMM_guess) != 0)[:, 0]
     argDiffTop = argDiff[treeSum[maxHMM_guess[argDiff]] == 999]

@@ -373,7 +373,7 @@ class HMMAlignJob(ExternalSeppJob):
 
 class HMMSearchJob(ExternalSeppJob):
 
-    def __init__(self, **kwargs):
+    def __init__(self, tblout=False, **kwargs):
         self.job_type = 'hmmsearch'
         ExternalSeppJob.__init__(self, self.job_type, **kwargs)
         self.hmmmodel = None
@@ -388,6 +388,7 @@ class HMMSearchJob(ExternalSeppJob):
             self.pipe = True
         # _LOG.info("Pipe: %s" %str(self.pipe ))
         self.results_on_temp = not self.pipe
+        self.tblout = tblout
 
     def setup(self, hmmmodel, fragments, output_file, elim=None,
               filters=True, **kwargs):
@@ -417,8 +418,10 @@ class HMMSearchJob(ExternalSeppJob):
 
     def get_invocation(self):
         invoc = [self.path, "--noali", "--cpu", "1"]
-        if not self.pipe:
+        if not self.tblout and not self.pipe:
             invoc.extend(["-o", self.outfile])
+        if self.tblout:
+            invoc.extend(["--tblout", self.outfile])
         if self.elim is not None:
             invoc.extend(["-E", str(self.elim)])
         if not self.filters:
