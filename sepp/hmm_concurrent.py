@@ -657,7 +657,7 @@ def compareHMM():
         print (cmd)
 
 def save_adjusted_score():
-    ''' This function takes every single hmmsearch bitscore result thaht was stored in full.npy
+    ''' This function takes every single hmmsearch bitscore result that was stored in full.npy
     and multiplies them by the log base 2 of the size of the sequence set the hmm was built on.
     These adjusted scores get saved to fullAdjusted.npy
     '''
@@ -779,6 +779,9 @@ def scoresToHMMSeq(strategyName):
             saveFastaBasic(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/newHMM/newHMMseq/" + str(a) + ".fasta", keys, seqs)
 
 def generateNewHMM(abstract_algorithm, strategyName):
+    '''
+    This builds the HMMs for every set of sequences which were selected to have an HMM built on.
+    '''
     dataFolderName = giveAllFileNames()[4]
     numHMM = int(np.max(np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy")[:, 1])+1)
     for a in range(0, numHMM):
@@ -805,6 +808,10 @@ def generateNewHMM(abstract_algorithm, strategyName):
     JobPool().wait_for_all_jobs()
 
 def resortToUPP(strategyName, doResort=False):
+    '''
+    if doResort is true, this causes each query to use UPP if UPP has a higher bitscore than
+    the HMM used. This function is not useful for either adjusted UPP or fast UPP. 
+    '''
     dataFolderName = giveAllFileNames()[4]
     scoreStrat_file = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/hmmScores/scoresFull/full.npy"
     ensureFolder(scoreStrat_file)
@@ -963,6 +970,12 @@ def txtToFasta(txtName, fastaName):
     saveFastaBasic(fastaName, keys, seqs)
 
 def alignQueries(abstract_algorithm, strategyName):
+    '''
+    This uses the HMM assigned to each query to align that query.
+    It alligns the query into the alignment of sequences which the HMM was trained on.
+    Since this set of sequences is not the same as the entire backbone, they will need
+    to be merged in a different function
+    '''
     dataFolderName = giveAllFileNames()[4]
     queryName = giveQueryFileName()
     queryData = loadFastaFormat(queryName)
@@ -994,6 +1007,12 @@ def alignQueries(abstract_algorithm, strategyName):
     JobPool().wait_for_all_jobs()
 
 def mergeAlignments(abstract_algorithm, strategyName, overlapLowercase=True):
+    '''
+    This merges the alignments of the queries, which were aligned to individual HMMs, not the entire backbone.
+    It keeps track of where the backbone is in the new alignment, and where the spaces to insert charecters are.
+    If overlapLowercase is enabled it will use a space saving format where lowercase letters represent insertions
+    and are not aligned with anything. 
+    '''
     dataFolderName = giveAllFileNames()[4]
     queryToHmm = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/HMMused.npy")
     predictionDataFull = []
@@ -1064,10 +1083,12 @@ def mergeAlignments(abstract_algorithm, strategyName, overlapLowercase=True):
 
             for b in range(len(insertNumber)):
                 if insertNumber[b] > 0:
+                    #This keeps track of which charecters need to be inserted between which charecters. 
                     toInsert = seqsArray[:, matchPosition[b]:matchPosition[b]+insertNumber[b]]
                     insertPosition = usedColsExtra[b]
                     fullInsertions[insertPosition].append(np.copy(toInsert))
                     fullInsertionsIndex[insertPosition].append(np.copy(argsHMM))
+                    #This keeps track of how many insertions need to be added between which charecters. 
                     if overlapLowercase:
                         fullInsertionsNumber[insertPosition] = max(insertNumber[b], fullInsertionsNumber[insertPosition])
                     else:
@@ -1134,6 +1155,10 @@ def mergeAlignments(abstract_algorithm, strategyName, overlapLowercase=True):
     np.save(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + '/hmmQueryList/merged/columnIndex.npy', colIndexTrue)
 
 def InputMergeAlignments(queryNamesFull, alignments, allInsertions, columnSets, Ncolumns, overlapLowercase=True):
+    '''
+    This is general code for merging alignments input into the function, rather than
+    using saved files.
+    '''
     Nquery = 0
     for alignment in alignments:
         Nquery += len(alignment)
@@ -1232,6 +1257,10 @@ def InputMergeAlignments(queryNamesFull, alignments, allInsertions, columnSets, 
     return newAlignmentString
 
 def easyInputMerge(alignments, columnSets, overlapLowercase=True):
+    '''
+    This allows you to use InputMergeAlignments
+    if you only have the alignments and columnSets
+    '''
     Ncolumns = 0
     for set1 in columnSets:
         Ncolumns = max(Ncolumns, np.max(set1))
@@ -1317,6 +1346,9 @@ def doAllSteps(strategyName):
     buildAlignMerge(strategyName)
 
 def scoreAlignment(strategyName):
+    
+    #This scores the allignments using FastSP
+    
     dataFolderName = giveAllFileNames()[4]
     saveTrueUPPSubset()
     saveTrueAlignFasta()
@@ -1370,6 +1402,12 @@ def compareToUPP():
 
 
 def hierchySearch(abstract_algorithm, adjusted_bitscore, early_stop, fakeSimulate=False):
+    
+    #This code runs a heirarchical search of hmms for each query.
+    #It starts with the root node, and determines the bitscore for both children.
+    #Then it moves to the highest scoring child and evaluates its children.
+    #This continus until the leaf nodes if early_stop is not enabled. 
+    
     observeNephew = False
 
     dataFolderName = giveAllFileNames()[4]
