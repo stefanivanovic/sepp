@@ -1015,6 +1015,7 @@ def mergeAlignments(abstract_algorithm, strategyName, overlapLowercase=True):
     for a in range(0, int(np.max(queryToHmm)) + 1):
         argsHMM = np.argwhere(queryToHmm == a)[:, 0]
         if argsHMM.shape[0] > 0:
+            #This loads in the insertions from the alignment stockholm, and converts it to a binary where 1 is an insertion and 0 is a match state. 
             predictionName = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + '/hmmQueryList/predictedQuery/'  + str(a) + '.sto'
             _, insertions = loadStockholm(predictionName)
             insertions = insertions[-1]
@@ -1022,21 +1023,25 @@ def mergeAlignments(abstract_algorithm, strategyName, overlapLowercase=True):
             insertions[insertions == '.'] = 1
             insertions[insertions == 'x'] = 0
             insertions = insertions.astype(int)
-
+        
+            #This loads in the predicted alignments and converts it to a 2 dimensional array
             keys, seqs = loadStockholmOnlySeqs(predictionName)
             queryNames[argsHMM] = keys
             seqsArray = []
             for seq in seqs:
                 seqsArray.append(list(seq))
             seqsArray = np.array(seqsArray)
+            
+            #This makes sure their is consistancy between the input queries and the prediction stockholm file. 
             queryFileName = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + '/hmmQueryList/inputQuery/'  + str(a) + '.fasta'
             queryKey, querySeq = loadFastaBasic(queryFileName)
-
             assert len(keys) == len(queryKey)
             for b in range(len(queryKey)):
                 assert queryKey[b] == keys[b]
-
+            
+            #This loads in the columns of the backbone which are used by this hmm. 
             usedCols = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + '/newHMM/columnSets/' + str(a) + ".npy")
+            #This indicates where the alignment has match states rather than insertions.
             matchPosition = np.argwhere(insertions == 0)[:, 0]
 
             try:
@@ -1046,10 +1051,13 @@ def mergeAlignments(abstract_algorithm, strategyName, overlapLowercase=True):
                 print ("not equal to the number of non-empty columns on the sequences")
                 print ("the hmm was trained on.")
                 assert len(usedCols) == len(matchPosition)
-
+            
+            #This sets the value of the alignment in the backbone positions. 
             backBoneChoice[np.ix_(argsHMM, usedCols)] = seqsArray[:, matchPosition]
             backBoneChoiceBool[np.ix_(argsHMM, usedCols)] = 1
-
+            
+            #This is used to determine insrtNumber which is the number of insertions between the match states.
+            #Specifically, insertionNumber[i] is the number of insertions between the ith match state and i+1 match state.
             insertionsNew = np.concatenate((np.zeros(1), insertions))
             insertionsNew = np.concatenate((insertionsNew, np.zeros(1)))
             insertionsNew = insertionsNew.astype(int)
@@ -1059,78 +1067,103 @@ def mergeAlignments(abstract_algorithm, strategyName, overlapLowercase=True):
             insertNumber = insertions_cumsum[matchPosition[1:]] - insertions_cumsum[matchPosition[:-1]]
             usedColsExtra = np.concatenate((np.zeros(1), usedCols+1)).astype(int)
 
-            if True:
-                usedColsExtra[-1] = len(backboneSeqs[0])
+           
+            usedColsExtra[-1] = len(backboneSeqs[0])
 
             for b in range(len(insertNumber)):
                 if insertNumber[b] > 0:
+                    #If there are insertions to make (insertNumber[b] > 0) the following code saves the insertions.
                     toInsert = seqsArray[:, matchPosition[b]:matchPosition[b]+insertNumber[b]]
                     insertPosition = usedColsExtra[b]
-                    fullInsertions[insertPosition].append(np.copy(toInsert))
-                    fullInsertionsIndex[insertPosition].append(np.copy(argsHMM))
+                    fullInsertions[insertPosition].append(np.copy(toInsert)) #Saves the values to insert
+                    fullInsertionsIndex[insertPosition].append(np.copy(argsHMM)) #Saves the indices of the queries where the insertions are made.
                     if overlapLowercase:
+                        #If a compressed format is used, insertions overlap with each other, so we only need as many insertions as the
+                        #maximum number of insertions which occurs between these match states.
                         fullInsertionsNumber[insertPosition] = max(insertNumber[b], fullInsertionsNumber[insertPosition])
                     else:
+                        #If a compressed format is not used, each new insertion requires a new column.
                         fullInsertionsNumber[insertPosition] += insertNumber[b]
-
+    
+    #This will be the new alignment with all insertions included. 
     #newAlignment = np.zeros((queryToHmm.shape[0], int(fullInsertionsNumber.shape[0] + np.sum(fullInsertionsNumber))  )).astype(str)
     newAlignment = np.zeros((queryToHmm.shape[0] + len(backboneKeys), int(fullInsertionsNumber.shape[0] + np.sum(fullInsertionsNumber))  )).astype(str)
 
     newAlignment[:] = '-'
     newAlignmentBool = np.zeros(newAlignment.shape)
+    #This gives the index of the match states in the new alignment. 
+    #If there are N insertions between match i and i+1, then the index of match state i+1 must be N+1 larger than
+    #the index of match state i.
     colIndex = np.cumsum(fullInsertionsNumber+1).astype(int)
     colIndex = np.concatenate((np.zeros(1), colIndex[:-1])).astype(int)
-    #newAlignment[:, colIndex[1:]] = backBoneChoice #[1:] removes fake "before everything" match state.
-    #newAlignmentBool[:, colIndex[1:]] = backBoneChoiceBool * 2
-    newAlignment[:queryToHmm.shape[0], colIndex[1:]] = backBoneChoice #[1:] removes fake "before everything" match state.
+    #This puts the back bone into the new alignment
+    newAlignment[:queryToHmm.shape[0], colIndex[1:]] = backBoneChoice 
     newAlignmentBool[:queryToHmm.shape[0], colIndex[1:]] = backBoneChoiceBool * 2
-
+    
+    #This whole loop adds the insertions into the new alignment
     for a in range(0, len(fullInsertions)):
         start1 = colIndex[a] + 1
         start2 = start1
         for b in range(0, len(fullInsertions[a])):
+            #This says the values to insert
             toInsert = fullInsertions[a][b]
+            #This says the queries where the insertions are being made
             insertQuery = fullInsertionsIndex[a][b]
+            #This says how many columns will be inserted
             size1 = toInsert.shape[1]
-            insertPosition = np.arange(size1) + start2
+            #This says which columns to insert the insertions
+            insertPosition = np.arange(size1) + start2 
+            #This places the insertion into the new alignment
             newAlignment[np.ix_(insertQuery, insertPosition)] = np.copy(toInsert)
             newAlignmentBool[np.ix_(insertQuery, insertPosition)] = 1
 
             if not overlapLowercase:
                 start2 += size1
+                
+    #Skip states are represented by '-' in our output format.
     newAlignment[newAlignment == '.'] = '-'
 
-    #newAlignmentBool
+    #This adds the backbone sequences into the new alignment. 
     queryNames = list(queryNames)
     for a in range(len(backboneKeys)):
         #backboneKeys, backboneSeqs
         seq1 = backboneSeqs[a]
         key1 = backboneKeys[a]
-
+        
+        #This adds the backbone sequence to the backbone column (colIndex). 
         newAlignment[a + queryToHmm.shape[0], colIndex[1:]] = np.copy(np.array(list(seq1)))
         queryNames.append(key1)
     queryNames = np.array(queryNames)
-
+    
+    #This removes an immaginary match state before all match states, which is a useful conceptual
+    #fiction which allows all insertions to be after some match state. 
     newAlignment = newAlignment[:, 1:]
     newAlignmentBool = newAlignmentBool[:, 1:]
     colIndexTrue = (colIndex[1:] - 1).astype(int)
-
+    
+    #This converts the 2 dimensional matrix alignment to a list of sequences. 
     newAlignmentString = []
     for a in range(newAlignment.shape[0]):
         str1 = ''.join(list(newAlignment[a]))
         newAlignmentString.append(copy.copy(str1))
     newAlignmentString = np.array(newAlignmentString)
-
+    
+    #This saves the new alginemtn
     fastaName = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + '/hmmQueryList/merged/alignmentFasta.fasta'
     ensureFolder(fastaName)
     saveFastaBasic(abstract_algorithm.get_output_filename("alignment.fasta"), queryNames, newAlignmentString)
     saveFastaBasic(fastaName, queryNames, newAlignmentString)
-
+    
+    #This saves only the query sequence part of the new alignment, which is useful for scoring the results. 
     fastaNameQuery = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + '/hmmQueryList/merged/query_alignmentFasta.fasta'
     saveFastaBasic(fastaNameQuery, queryNames[:queryToHmm.shape[0]], newAlignmentString[:queryToHmm.shape[0]])
-
+    
+    #This saves extra information in addition the alignment fasta. 
+    #This is the new alignment in a 2 dimensional array
     np.save(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + '/hmmQueryList/merged/alignment.npy', newAlignment)
+    #This is the elements of the new alignment which correspond to the old subalignments
     np.save(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + '/hmmQueryList/merged/alignmentBool.npy', newAlignmentBool)
+    #This is the columns in the new alignment which correspond to the backbone. 
     np.save(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + '/hmmQueryList/merged/columnIndex.npy', colIndexTrue)
 
 def InputMergeAlignments(queryNamesFull, alignments, allInsertions, columnSets, Ncolumns, overlapLowercase=True):
