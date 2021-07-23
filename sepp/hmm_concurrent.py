@@ -804,61 +804,6 @@ def generateNewHMM(abstract_algorithm, strategyName):
         addHMMBuildJob(abstract_algorithm, hmmName, src)
     JobPool().wait_for_all_jobs()
 
-def resortToUPP(strategyName, doResort=False):
-    dataFolderName = giveAllFileNames()[4]
-    scoreStrat_file = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/hmmScores/scoresFull/full.npy"
-    ensureFolder(scoreStrat_file)
-    scoreStrat = np.load(scoreStrat_file)
-    scoreUPP_file = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmScores/fullAdjusted.npy"
-    ensureFolder(scoreUPP_file)
-    scoreUPP = np.load(scoreUPP_file)
-    if not doResort:
-        scoreUPP[:] = -1000
-    diff = np.max(scoreStrat, axis=1) - np.max(scoreUPP, axis=1)
-    uppChoice = np.argmax(scoreUPP, axis=1)
-    strategyChoice = np.argmax(scoreStrat, axis=1)
-    argsUppBetter = np.argwhere(diff < 0)[:, 0]
-    uppToUse = uppChoice[argsUppBetter]
-    _, uppToUseInverse = np.unique(uppToUse, return_inverse=True)
-    HMMinverse_old = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy")
-    max1 = np.max(HMMinverse_old[:, 1])
-    HMMinverse = np.copy(strategyChoice)
-    HMMinverse[argsUppBetter] = max1 + 1 + uppToUseInverse
-    #TODO what about HMM which are now removed
-    uppPosition = np.zeros(HMMinverse.shape[0]) - 1
-    uppPosition[argsUppBetter] = uppChoice[argsUppBetter]
-    HMMinverse_file = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/HMMused.npy"
-    ensureFolder(HMMinverse_file)
-    np.save(HMMinverse_file, HMMinverse)
-    np.save(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/UPPused.npy", uppPosition)
-    uppToUseUnique, index1 = np.unique(uppToUse, return_index=True)
-    newNumsFull = []
-    for a in range(len(uppToUseUnique)):
-        uppNum = uppToUseUnique[a]
-        newNum = HMMinverse[argsUppBetter[index1[a]]]
-        newNumsFull.append(newNum)
-        keys, seqs = loadFastaBasic(get_root_temp_dir() + "/data/internalData/" + dataFolderName + '/hmmSeqAlign/' + str(uppNum) + '.fasta')
-        seqMatrix = []
-        for seq in seqs:
-            seqMatrix.append(list(seq))
-        seqMatrix = np.array(seqMatrix)
-        seqMatrix2 = seqMatrix.T
-        usedCols = []
-        for b in range(seqMatrix2.shape[0]):
-            list1 = seqMatrix2[b]
-            sizeReal = list1[list1 != '-'].shape[0]
-            if sizeReal != 0:
-                usedCols.append(b)
-        usedCols = np.array(usedCols)
-        usedCols_file = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + '/newHMM/columnSets/' + str(newNum) + ".npy"
-        ensureFolder(usedCols_file)
-        np.save(usedCols_file, usedCols)
-    newNumsFull = np.array(newNumsFull)
-    theoryNewNums = HMMinverse[HMMinverse > max1]
-    diffIssue = np.unique(newNumsFull) - np.unique(theoryNewNums)
-    diffIssue = np.sum(np.abs(diffIssue))
-
-    assert diffIssue == 0
 
 def stockholmToFasta(stockholmName, fastaName):
     fakeFastaName = '%s/temporaryFileSave/fakeFasta_1.fasta' % dirName
@@ -966,8 +911,9 @@ def alignQueries(abstract_algorithm, strategyName):
     dataFolderName = giveAllFileNames()[4]
     queryName = giveQueryFileName()
     queryData = loadFastaFormat(queryName)
-    queryToHmm = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/HMMused.npy")
-    uppHMM = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/UPPused.npy")
+    queryToHmm = np.load("./data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy")[:, 1]
+    #queryToHmm = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/HMMused.npy")
+    #uppHMM = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/UPPused.npy")
 
     predictionDataFull = []
     for b in range(0, int(np.max(queryToHmm)) + 1):
@@ -984,18 +930,19 @@ def alignQueries(abstract_algorithm, strategyName):
             saveFasta(queryName1, dataNow)
             predictionName = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + '/hmmQueryList/predictedQuery/' + str(b) + '.sto'
             ensureFolder(predictionName)
-            if uppHMM[argsHMM[0]] == -1:
-                hmmName = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/newHMM/hmm/" + str(b) + ".hmm"
-            else:
-                uppNum = int(uppHMM[argsHMM[0]])
-                hmmName = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/initialHMM/test" + str(uppNum) + ".hmm"
+            #if uppHMM[argsHMM[0]] == -1:
+            hmmName = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/newHMM/hmm/" + str(b) + ".hmm"
+            #else:
+            #    uppNum = int(uppHMM[argsHMM[0]])
+            #    hmmName = get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/initialHMM/test" + str(uppNum) + ".hmm"
             ensureFolder(hmmName)
             addHMMAlignJob(abstract_algorithm, hmmName, queryName1, predictionName)
     JobPool().wait_for_all_jobs()
 
 def mergeAlignments(abstract_algorithm, strategyName, overlapLowercase=True):
     dataFolderName = giveAllFileNames()[4]
-    queryToHmm = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/HMMused.npy")
+    #queryToHmm = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/HMMused.npy")
+    queryToHmm = np.load("./data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy")[:, 1]
     predictionDataFull = []
     backboneKeys, backboneSeqs = loadFastaBasic(get_root_temp_dir() + "/data/internalData/" + dataFolderName + '/hmmSeqAlign/' + str(0) + '.fasta')
     backBoneChoice = np.zeros((queryToHmm.shape[0], len(backboneSeqs[0]))).astype(str)
