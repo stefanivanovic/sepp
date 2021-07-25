@@ -1264,7 +1264,6 @@ def buildAlignMerge(abstract_algorithm, strategyName, doResort=False):
     generateNewHMM(abstract_algorithm, strategyName)
 
     saveNewScores(abstract_algorithm, strategyName)
-    resortToUPP(strategyName, doResort=doResort)
 
     alignQueries(abstract_algorithm, strategyName)
     mergeAlignments(abstract_algorithm, strategyName)
