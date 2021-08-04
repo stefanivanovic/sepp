@@ -911,7 +911,7 @@ def alignQueries(abstract_algorithm, strategyName):
     dataFolderName = giveAllFileNames()[4]
     queryName = giveQueryFileName()
     queryData = loadFastaFormat(queryName)
-    queryToHmm = np.load("./data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy")[:, 1]
+    queryToHmm = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy")[:, 1]
     #queryToHmm = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/HMMused.npy")
     #uppHMM = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/UPPused.npy")
 
@@ -942,7 +942,7 @@ def alignQueries(abstract_algorithm, strategyName):
 def mergeAlignments(abstract_algorithm, strategyName, overlapLowercase=True):
     dataFolderName = giveAllFileNames()[4]
     #queryToHmm = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/withUPP/HMMused.npy")
-    queryToHmm = np.load("./data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy")[:, 1]
+    queryToHmm = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy")[:, 1]
     predictionDataFull = []
     backboneKeys, backboneSeqs = loadFastaBasic(get_root_temp_dir() + "/data/internalData/" + dataFolderName + '/hmmSeqAlign/' + str(0) + '.fasta')
     backBoneChoice = np.zeros((queryToHmm.shape[0], len(backboneSeqs[0]))).astype(str)
