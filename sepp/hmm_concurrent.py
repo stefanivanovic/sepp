@@ -677,11 +677,11 @@ def save_adjusted_score():
 def save_initial_steps(abstract_algorithm):
     save_sequence_filenames()
     save_initial_hmm(abstract_algorithm)
-    save_scores_original(abstract_algorithm)
+    #save_scores_original(abstract_algorithm)
     save_hmm_sets()
     save_decomposition()
     realign_hmm_seq()
-    save_adjusted_score()
+    #save_adjusted_score()
 
 def doPoisonRemoval(maxHMM, scores, queryNum):
     treeData = findDecomposition()
@@ -732,10 +732,10 @@ def saveFromBooleanInclude(hmmLeafs, strategyName):
 
 def scoresToHMMSeq(strategyName):
     dataFolderName = giveAllFileNames()[4]
-    scores = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmScores/fullAdjusted.npy")
     ensureFolder(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy")
     ensureFolder(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/newHMM/newHMMseq/")
     if strategyName in ["adjusted_bitscore", "upp"]: # ['stefan_UPP', 'stefan_UPPadjusted']:
+        scores = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmScores/fullAdjusted.npy")
         if strategyName == "upp":
             scores = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmScores/full.npy")
         scores = scores / np.max(scores)
@@ -761,6 +761,7 @@ def scoresToHMMSeq(strategyName):
             scoresFull = np.load('%s/ensembleData/Searcher/scoreFiles/score.npy' % dirName)
         maxHMM = np.argmax(scoresFull, axis=1).astype(int)
         if strategyName == 'stefan_fastUPPexception':
+            scores = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmScores/fullAdjusted.npy")
             scores_original = np.load("%s/hmmScores/full.npy" % dirName)
             treeData = findDecomposition()
             treeSum = np.sum(treeData, axis=1)
@@ -1355,7 +1356,8 @@ def hierchySearch(abstract_algorithm, adjusted_bitscore, early_stop, fakeSimulat
     dataFolderName = giveAllFileNames()[4]
     # np.load("./data/internalData/" + dataFolderName + "/hmmScores/full.npy")
     # scores_original is the raw bitscores without the adjusted weights
-    scores_original = np.load(get_root_temp_dir() + "/data/internalData/%s/hmmScores/full.npy" % (dataFolderName))
+    if fakeSimulate:
+        scores_original = np.load(get_root_temp_dir() + "/data/internalData/%s/hmmScores/full.npy" % (dataFolderName))
     # so here the size of each hmm is stored in hmm_sizes where hmm_sizes[i] is the size of the ith hmm
     hmm_sets = np.load(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/hmmSets.npy", allow_pickle=True)
     hmm_sizes = []
