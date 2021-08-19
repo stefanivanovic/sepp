@@ -748,10 +748,11 @@ def scoresToHMMSeq(strategyName):
         np.save(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/queryToHmm/original.npy", HMMinverse)
         for a in range(0, len(HMMunique)):
             HMMnum = HMMunique[a]
-            name = get_root_temp_dir() + "/data/internalData/" + dataFolderName + '/hmmSeqAlign/' + str(a) + '.fasta'
+            # name = get_root_temp_dir() + "/data/internalData/" + dataFolderName + '/hmmSeqAlign/' + str(a) + '.fasta'
+            name = get_root_temp_dir() + "/data/internalData/" + dataFolderName + '/hmmSeqAlign/' + str(HMMnum) + '.fasta'
             keys, seqs = loadFastaBasic(name)
             saveFastaBasic(get_root_temp_dir() + "/data/internalData/" + dataFolderName + "/" + strategyName + "/newHMM/newHMMseq/" + str(a) + ".fasta", keys, seqs)
-    if strategyName in ["hierarchical"]: # ['stefan_fastUPP', 'stefan_fastUPPexception', 'stefan_fastUPPearly']:
+    elif strategyName in ["hierarchical"]: # ['stefan_fastUPP', 'stefan_fastUPPexception', 'stefan_fastUPPearly']:
         if strategyName == 'stefan_fastUPPearly':
             scoresFull = np.load('%s/ensembleData/Searcher/scoreFiles/Early_score.npy' % dirName)
         else:
