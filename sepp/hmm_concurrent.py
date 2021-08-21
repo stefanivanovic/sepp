@@ -207,15 +207,30 @@ def save_sequence_filenames():
     # works properly. However, UPP decomposition, after looking at the files manually, is not exactly disjoint at the leaf level
     # why is upp decomposition like this?
     Anums = np.array(Anums)
+    
     removalArgs = []
+
+    numSeq = []
+    firstKey = []
+    for a in range(len(sequenceFileNames)):
+        keys1, _ = loadFastaBasic(sequenceFileNames[a])
+        keys1 = np.sort(np.array(keys1))
+        numSeq.append(len(keys1))
+        firstKey.append(keys1[0])
+
+
     for a in range(len(sequenceFileNames)):
         for b in range(len(sequenceFileNames)):
             if b > a:
-                keys1, _ = loadFastaBasic(sequenceFileNames[a])
-                keys2, _ = loadFastaBasic(sequenceFileNames[b])
-                if len(keys1) == len(keys2):
-                    if len(np.intersect1d(keys1, keys2)) == len(keys1):
-                        removalArgs.append(b)
+                if numSeq[a] == numSeq[b]:
+                    if firstKey[a] == firstKey[b]:
+                        keys1, _ = loadFastaBasic(sequenceFileNames[a])
+                        keys2, _ = loadFastaBasic(sequenceFileNames[b])
+                        if len(keys1) == len(keys2):
+                            if len(np.intersect1d(keys1, keys2)) == len(keys1):
+                                removalArgs.append(b)
+        
+        
     keepArgs = np.arange(len(sequenceFileNames))
     # one effect i observed was that having removalArgs makes it so that
     # further down the edges and children no longer consider themselves their own parents
